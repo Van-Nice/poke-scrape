@@ -123,8 +123,6 @@ Provides a dictionary of sprites for each Pokémon, categorized by type (Normal,
 
 ```json
 "sprites": {
-    "name": "Unknown",
-    "alias": "Unknown",
     "data": [
         {
             "type": "Normal",

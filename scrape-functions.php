@@ -78,35 +78,43 @@ function processEvolutionChain($crawler) {
     $node = new Crawler($element);
     if ($node->matches('.infocard')) {
       $pokemonDetails = extractPokemonDetails($node);
-      $evolutionData[] = $pokemonDetails;
+      // Use the Pokémon's name as the key for the associative array
+      $evolutionData[$pokemonDetails['name']] = $pokemonDetails;
     } else if ($node->matches('.infocard-arrow')) {
       $evolutionDetail = cleanData($node->text());
       if (!empty($evolutionData)) {
-        $evolutionData[count($evolutionData) - 1]['evolution_detail'] = $evolutionDetail;
+        // Get the last key in the evolutionData array
+        $lastKey = array_key_last($evolutionData);
+        $evolutionData[$lastKey]['evolution_detail'] = $evolutionDetail;
       }
     }
   }
 
   return $evolutionData;
 }
+
 function processPokemonData($crawler, $tableKeys) {
-  $pokemonData = $crawler->filter('.vitals-table')->each(function ($table, $index) use ($tableKeys) {
+  $pokemonData = [];
+
+  // Process vitals data
+  $crawler->filter('.vitals-table')->each(function ($table, $index) use (&$pokemonData, $tableKeys) {
     $key = $tableKeys[$index] ?? 'unknown';
-    $data = $table->filter('tbody tr')->each(function ($tr) {
-      $th = $tr->filter('th')->text();
+    $data = [];
+    $table->filter('tbody tr')->each(function ($tr) use (&$data) {
+      $th = trim($tr->filter('th')->text());
       $tds = $tr->filter('td')->each(function ($td) {
         if ($td->filter('div')->count()) {
           $barWidth = $td->filter('div')->attr('style');
           return preg_replace('/width:(\d+\.\d+)%;/', '$1%', $barWidth);
         }
-        return $td->text();
+        return trim($td->text());
       });
-      return [$th => $tds];
+      $data[$th] = count($tds) === 1 ? $tds[0] : $tds;
     });
-    return [$key => $data];
+    $pokemonData[$key] = $data;
   });
 
-  // Scrape the type interactions from the provided HTML structure
+// Process type interactions
   $typeInteractions = [];
   $crawler->filter('.type-table.type-table-pokedex')->each(function ($table) use (&$typeInteractions) {
     $types = $table->filter('th')->each(function ($th) {
@@ -114,17 +122,20 @@ function processPokemonData($crawler, $tableKeys) {
     });
     $table->filter('tr')->eq(1)->filter('td')->each(function ($td, $index) use (&$typeInteractions, $types) {
       $interaction = [
-        'type' => $types[$index],
         'effectiveness' => trim($td->text()),
         'description' => $td->attr('title')
       ];
-      $typeInteractions[] = $interaction;
+      $typeInteractions[$types[$index]] = $interaction;
     });
   });
 
+  // Process evolution chain
   $evolutionData = processEvolutionChain($crawler);
+
+  // Scrape sprites data
   $sprites = scrapePokemonSprites($crawler);
 
+  // Return all combined data
   return [
     'vitals' => $pokemonData,
     'typeInteractions' => $typeInteractions,
