@@ -151,12 +151,41 @@ function extractTrainingData($crawler) {
   $trainingData = [];
 
   // Select the h2 element that contains training
-}
+  $trainingDataH2 = $crawler->filterXPath('//h2[text()="Training"]');
 
+  $nextElement = $crawler->filterXPath('//h2[text()="Training"]/following-sibling::table[1]');
+
+  // Check if the table exists directly after the H2
+  if ($nextElement->count() > 0) {
+    // Iterate through each row in the table
+    $nextElement->filter('tbody > tr')->each(function ($tr) use (&$trainingData) {
+      $key = trim($tr->filter('th')->text()); // Extract the key from the th element
+      $value = $tr->filter('td')->each(function ($td) {
+        // Handle special cases with multiple links or nested tags
+        if ($td->filter('a')->count() > 0) {
+          $links = [];
+          $td->filter('a')->each(function ($link) use (&$links) {
+            $links[] = trim($link->text());
+          });
+          return implode(', ', $links);
+        } elseif ($td->filter('strong')->count() > 0) {
+          return trim($td->filter('strong')->text());
+        } else {
+          return trim($td->text());
+        }
+      });
+
+      // Concatenate values if they are in an array (due to multiple elements within td)
+      $trainingData[$key] = is_array($value) ? implode(' ', $value) : $value;
+    });
+  }
+  return $trainingData;
+}
 
 function processPokemonData($crawler) {
   // Initialize data containers
   $pokedexData = extractPokedexData($crawler);
+  $trainingData = extractTrainingData($crawler);
   $typeInteractions = [];
   $evolutionData = processEvolutionChain($crawler);
   $sprites = scrapePokemonSprites($crawler);
@@ -210,7 +239,8 @@ function processPokemonData($crawler) {
   // Return all combined data
   return [
     'description' => $paragraphs,
-    'vitals' => $pokedexData,
+    'pokedexData' => $pokedexData,
+    'trainingData' => $trainingData,
     'typeInteractions' => $typeInteractions,
     'evolutions' => $evolutionData,
     'sprites' => $sprites,
