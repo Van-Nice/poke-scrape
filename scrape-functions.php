@@ -10,6 +10,44 @@ function cleanData($input): string|array {
   return $output;
 }
 
+function scrapePokemonSprites($crawler) {
+  // Check if the crawler has the necessary table, return early if not.
+  if (!$crawler->filter('.data-table.sprites-table.sprites-history-table')->count()) {
+    return ['error' => 'No valid table found'];
+  }
+
+  $pokemonName = $crawler->attr('data-pkname') ?: 'Unknown';
+  $pokemonAlias = $crawler->attr('data-pkalias') ?: 'Unknown';
+
+  $spritesData = $crawler->filter('.data-table.sprites-table.sprites-history-table tbody tr')->each(function ($tr, $i) {
+    $typeNode = $tr->filter('td')->first();
+    $type = $typeNode->count() ? trim($typeNode->text()) : 'Unknown Type';
+
+    $sprites = [];
+    $tr->filter('td.text-center')->each(function ($td, $index) use (&$sprites, $tr) {
+      $header = $tr->closest('table')->filter('thead th')->eq($index + 1)->text();
+      if ($td->filter('a')->count() && $td->filter('img')->count()) {
+        $imgSrc = $td->filter('img')->attr('src');
+        $sprites[$header] = $imgSrc;
+      } else {
+        $sprites[$header] = '—';
+      }
+    });
+
+    return [
+      'type' => $type,
+      'sprites' => $sprites
+    ];
+  });
+
+  return [
+    'name' => $pokemonName,
+    'alias' => $pokemonAlias,
+    'data' => $spritesData
+  ];
+}
+
+
 function processEvolutionChain($crawler) {
   $evolutionElements = $crawler->filter('.infocard-list-evo > div')->each(function ($node) {
     $classAttribute = $node->attr('class');
@@ -93,11 +131,13 @@ function processPokemonData($crawler, $tableKeys) {
   });
 
   $evolutionData = processEvolutionChain($crawler);
+  $sprites = scrapePokemonSprites($crawler);
 
   return [
     'vitals' => $pokemonData,
     'typeInteractions' => $typeInteractions,
     'evolutions' => $evolutionData,
+    'sprites' => $sprites,
   ];
 }
 ?>

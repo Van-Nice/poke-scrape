@@ -18,6 +18,7 @@ $crawler->filter('.ent-name')->each(function ($node) use ($client) {
   $pokemon = array_map('cleanData', $processedData['vitals']);
   $pokemon['typeInteractions'] = $processedData['typeInteractions'];
   $pokemon['evolutions'] = $processedData['evolutions'];
+  $pokemon['sprites'] = $processedData['sprites'];
 
   print_r($pokemon);
   sleep(5); // Sleep to avoid rate limiting
