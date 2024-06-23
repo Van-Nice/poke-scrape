@@ -43,25 +43,101 @@ php main.php
 
 The script will fetch details for each Pokémon not already present in `pokemonData.json` and update this file with new data.
 
-## Data Structure
+### Overview of the JSON Structure
 
-The output JSON file will have the following structure for each Pokémon:
+Each Pokémon, like "Bulbasaur", is stored as a key in the JSON object. Under each Pokémon's key, there are various nested sections that encapsulate all the relevant data:
 
 ```json
-{
-  "Bulbasaur": {
-    "pokedexData": [...],
-    "training": [...],
-    "breeding": [...],
-    "baseStats": [...],
-    "pokedexEntries": [...],
-    "whereToFind": [...],
-    "otherLanguages": [...],
-    "otherLanguagesSpecies": [...]
-  },
-  ...
+"Bulbasaur": {
+    "vitals": [...],
+    "typeInteractions": [...],
+    "evolutions": [...],
+    "sprites": {...}
 }
 ```
+
+### Detailed Breakdown
+
+#### 1. **Vitals**
+This section contains an array of different categories of vital information about the Pokémon. Each category is a dictionary within the array:
+
+- **Pokedex Data**: Basic identifiers and biological traits.
+- **Training**: Information relevant to how the Pokémon is trained.
+- **Breeding**: Details about breeding capabilities.
+- **Base Stats**: Fundamental stats for the Pokémon's abilities in battles.
+- **Pokedex Entries**: Narrative descriptions from various game editions.
+- **Where To Find**: Locations where the Pokémon can be found across different game versions.
+- **Other Languages**: Names of the Pokémon in different languages.
+- **Other Languages Species**: Species name translations.
+
+```json
+"vitals": [
+    {
+        "pokedexData": [
+            {"National \u2116": ["0001"]},
+            {"Type": ["Grass Poison"]},
+            ...
+        ],
+        "training": [...],
+        "breeding": [...],
+        "baseStats": [...],
+        "pokedexEntries": [...],
+        "whereToFind": [...],
+        "otherLanguages": [...],
+        "otherLanguagesSpecies": [...]
+    }
+]
+```
+
+#### 2. **Type Interactions**
+Describes how effective or ineffective the Pokémon's type is against other types, useful for battle strategies.
+
+```json
+"typeInteractions": [
+    {
+        "type": "Nor",
+        "effectiveness": "",
+        "description": "Normal \u2192 Grass/Poison = normal effectiveness"
+    },
+    ...
+]
+```
+
+#### 3. **Evolutions**
+Lists the evolutionary stages of the Pokémon, including images and type details.
+
+```json
+"evolutions": [
+    {
+        "name": "Bulbasaur",
+        "id": "#0001",
+        "types": ["Grass", "Poison"],
+        "image": "https://img.pokemondb.net/sprites/home/normal/2x/bulbasaur.jpg"
+    },
+    ...
+]
+```
+
+#### 4. **Sprites**
+Provides a dictionary of sprites for each Pokémon, categorized by type (Normal, Shiny) and game generation.
+
+```json
+"sprites": {
+    "name": "Unknown",
+    "alias": "Unknown",
+    "data": [
+        {
+            "type": "Normal",
+            "sprites": {
+                "Generation 1": "https://img.pokemondb.net/sprites/red-blue/normal/bulbasaur.png",
+                ...
+            }
+        },
+        ...
+    ]
+}
+```
+
 
 ## Contributing
 
