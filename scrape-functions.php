@@ -2,24 +2,36 @@
 use Symfony\Component\DomCrawler\Crawler;
 
 function cleanData($input) {
-  $output = strip_tags($input);  // Remove HTML tags
-  $output = html_entity_decode($output, ENT_QUOTES | ENT_HTML5, 'UTF-8');  // Decode HTML entities
-  $output = preg_replace('/\s+/', ' ', $output);  // Replace multiple whitespace with single space
-  $output = trim($output);  // Trim spaces
+  // Remove HTML tags and decode HTML entities
+  $output = html_entity_decode(strip_tags($input), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+  // Normalize whitespace
+  $output = preg_replace('/\s+/', ' ', $output);
+  $output = trim($output);
 
-  // Attempt to extract numbers from strings containing units (e.g., "6.9 kg")
-  if (preg_match('/^(\d+\.?\d*)\s*[a-zA-Z%]+$/i', $output, $matches)) {
-    $output = $matches[1];
+  // Extract numbers from strings with units and percentages
+  if (preg_match('/^(\d+\.?\d*)\s*([a-zA-Z%]+)/i', $output, $matches)) {
+    $number = $matches[1];
+    $unit = $matches[2];
+
+    // Convert weight from kg to pounds, height from meters to feet, etc., if needed
+    switch (strtolower($unit)) {
+      case 'kg':
+        $number *= 2.20462; // Convert kg to pounds
+        break;
+      case 'm':
+        $number *= 3.28084; // Convert meters to feet
+        break;
+      case '%':
+        return floatval($number) / 100; // Convert percentage to decimal
+      default:
+        break;
+    }
+    return $number;
   }
 
-  // Convert numeric strings to integers or floats where appropriate
+  // Automatically convert numeric strings to numbers
   if (is_numeric($output)) {
-    return $output + 0;  // Converts to int or float automatically
-  }
-
-  // Convert percentages into decimal
-  if (strpos($output, '%') !== false) {
-    return floatval(str_replace('%', '', $output)) / 100;
+    return $output + 0;
   }
 
   return $output;
@@ -107,85 +119,70 @@ function processEvolutionChain($crawler) {
   return $evolutionData;
 }
 
-function extractPokedexData($crawler) {
-  // Initialize the array to store Pokédex data
-  $pokedexData = [];
+function extractData($crawler, $section) {
+  $data = [];
+  $sectionHeader = $crawler->filterXPath("//h2[text()=\"$section\"]");
+  $nextElement = $sectionHeader->nextAll('table')->first();
 
-  // Select the <h2> element that contains 'Pokédex data'
-  $pokedexDataH2 = $crawler->filterXPath('//h2[text()="Pokédex data"]');
+  if ($nextElement->count() > 0) {
+    $nextElement->filter('tbody > tr')->each(function ($tr) use (&$data) {
+      $key = trim($tr->filter('th')->text());
+      $value = $tr->filter('td')->text();
+      $data[$key] = cleanData($value); // Use cleanData function to clean each value
+    });
+  }
+
+  return $data;
+}
+
+function extractBaseStats($crawler, $section) {
+  $stats = [];
+
+  // Select the <h2> element that contains 'Base Stats'
+  $sectionHeader = $crawler->filterXPath("//h2[text()=\"$section\"]");
 
   // Select the table element directly after the <h2>
-  $nextElement = $crawler->filterXPath('//h2[text()="Pokédex data"]/following-sibling::table[1]');
+  $nextElement = $sectionHeader->nextAll('table')->first();
 
-  // Check if the table exists directly after the H2
   if ($nextElement->count() > 0) {
-    // Iterate through each row in the table
-    $nextElement->filter('tbody > tr')->each(function ($tr) use (&$pokedexData) {
-      $key = trim($tr->filter('th')->text()); // Extract the key from the th element
-      $value = $tr->filter('td')->each(function ($td) {
-        // Handle special cases with multiple links or nested tags
-        if ($td->filter('a')->count() > 0) {
-          $links = [];
-          $td->filter('a')->each(function ($link) use (&$links) {
-            $links[] = trim($link->text());
-          });
-          return implode(', ', $links);
-        } elseif ($td->filter('strong')->count() > 0) {
-          return trim($td->filter('strong')->text());
-        } else {
-          return trim($td->text());
-        }
-      });
+    // Iterate through each row in the table body
+    $nextElement->filter('tbody > tr')->each(function ($tr) use (&$stats) {
+      $statName = trim($tr->filter('th')->text());
+      $baseStat = cleanData(trim($tr->filter('td.cell-num')->eq(0)->text()));
+      $minStat = cleanData(trim($tr->filter('td.cell-num')->eq(1)->text()));
+      $maxStat = cleanData(trim($tr->filter('td.cell-num')->eq(2)->text()));
 
-      // Concatenate values if they are in an array (due to multiple elements within td)
-      $pokedexData[$key] = is_array($value) ? implode(' ', $value) : $value;
+      $stats[$statName] = [
+        'Base' => intval($baseStat),
+        'Min' => intval($minStat),
+        'Max' => intval($maxStat)
+      ];
     });
+
+    // Extract total stats from the table footer
+    $tfoot = $nextElement->filter('tfoot > tr');
+    if ($tfoot->count() > 0) {
+      $totalBase = cleanData(trim($tfoot->filter('td.cell-num')->text()));
+      $minLabel = cleanData(trim($tfoot->filter('th')->eq(1)->text()));
+      $maxLabel = cleanData(trim($tfoot->filter('th')->eq(2)->text()));
+
+      $stats['Total'] = [
+        'Base' => intval($totalBase),
+        'Min' => $minLabel,  // These are labels and not numeric values
+        'Max' => $maxLabel
+      ];
+    }
   }
 
-  // Return the associative array containing all Pokédex data
-  return $pokedexData;
+  return $stats;
 }
 
-function extractTrainingData($crawler) {
-  // Initialize array to store training data
-  $trainingData = [];
-
-  // Select the h2 element that contains training
-  $trainingDataH2 = $crawler->filterXPath('//h2[text()="Training"]');
-
-  $nextElement = $crawler->filterXPath('//h2[text()="Training"]/following-sibling::table[1]');
-
-  // Check if the table exists directly after the H2
-  if ($nextElement->count() > 0) {
-    // Iterate through each row in the table
-    $nextElement->filter('tbody > tr')->each(function ($tr) use (&$trainingData) {
-      $key = trim($tr->filter('th')->text()); // Extract the key from the th element
-      $value = $tr->filter('td')->each(function ($td) {
-        // Handle special cases with multiple links or nested tags
-        if ($td->filter('a')->count() > 0) {
-          $links = [];
-          $td->filter('a')->each(function ($link) use (&$links) {
-            $links[] = trim($link->text());
-          });
-          return implode(', ', $links);
-        } elseif ($td->filter('strong')->count() > 0) {
-          return trim($td->filter('strong')->text());
-        } else {
-          return trim($td->text());
-        }
-      });
-
-      // Concatenate values if they are in an array (due to multiple elements within td)
-      $trainingData[$key] = is_array($value) ? implode(' ', $value) : $value;
-    });
-  }
-  return $trainingData;
-}
-
-function processPokemonData($crawler) {
+function processPokemonData($crawler, $pokemonData) {
   // Initialize data containers
-  $pokedexData = extractPokedexData($crawler);
-  $trainingData = extractTrainingData($crawler);
+  $pokedexData = extractData($crawler, 'Pokédex data');
+  $trainingData = extractData($crawler, 'Training');
+  $breedingData = extractData($crawler, 'Breeding');
+  $baseStats = extractBaseStats($crawler, 'Base stats');
   $typeInteractions = [];
   $evolutionData = processEvolutionChain($crawler);
   $sprites = scrapePokemonSprites($crawler);
@@ -240,7 +237,9 @@ function processPokemonData($crawler) {
   return [
     'description' => $paragraphs,
     'pokedexData' => $pokedexData,
+    'breedingData' => $breedingData,
     'trainingData' => $trainingData,
+    'baseStats' => $baseStats,
     'typeInteractions' => $typeInteractions,
     'evolutions' => $evolutionData,
     'sprites' => $sprites,

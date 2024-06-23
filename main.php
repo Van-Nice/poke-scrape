@@ -35,7 +35,7 @@ $crawler->filter('.cell-name')->each(function ($node) use ($client, &$pokemonDat
     ];
 
     // Process the fetched data using these keys.
-    $processedData = processPokemonData($detailsCrawler);
+    $processedData = processPokemonData($detailsCrawler, $pokemonName);
 
     $pokemonData[$pokemonName] = $processedData;
 
