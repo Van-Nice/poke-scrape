@@ -3,20 +3,24 @@
 use Symfony\Component\DomCrawler\Crawler;
 
 function cleanData($input) {
-  if ($input === null) {
-    return '';  // Return an empty string or handle the null case as appropriate
-  }
-  if (is_array($input)) {
-    return array_map('cleanData', $input);  // Recursively clean each element
-  }
   $output = strip_tags($input);  // Remove HTML tags
   $output = html_entity_decode($output, ENT_QUOTES | ENT_HTML5, 'UTF-8');  // Decode HTML entities
   $output = preg_replace('/\s+/', ' ', $output);  // Replace multiple whitespace with single space
   $output = trim($output);  // Trim spaces
 
+  // Attempt to extract numbers from strings containing units (e.g., "6.9 kg")
+  if (preg_match('/^(\d+\.?\d*)\s*[a-zA-Z%]+$/i', $output, $matches)) {
+    $output = $matches[1];
+  }
+
   // Convert numeric strings to integers or floats where appropriate
   if (is_numeric($output)) {
     return $output + 0;  // Converts to int or float automatically
+  }
+
+  // Convert percentages into decimal
+  if (strpos($output, '%') !== false) {
+    return floatval(str_replace('%', '', $output)) / 100;
   }
 
   return $output;
@@ -114,11 +118,12 @@ function processPokemonData($crawler, $tableKeys) {
     $table->filter('tbody tr')->each(function ($tr) use (&$data) {
       $th = trim($tr->filter('th')->text());
       $tds = $tr->filter('td')->each(function ($td) {
-        if ($td->filter('div')->count()) {
+        $content = trim($td->text());  // Get the text of the td element
+        if ($td->filter('div')->count()) {  // If there's a div, assume it's a style width (for graphical bars, etc.)
           $barWidth = $td->filter('div')->attr('style');
           return preg_replace('/width:(\d+\.\d+)%;/', '$1%', $barWidth);
         }
-        return trim($td->text());
+        return cleanData($content);  // Apply cleanData here to clean and possibly convert
       });
       $data[$th] = count($tds) === 1 ? $tds[0] : $tds;
     });
@@ -129,12 +134,12 @@ function processPokemonData($crawler, $tableKeys) {
   $typeInteractions = [];
   $crawler->filter('.type-table.type-table-pokedex')->each(function ($table) use (&$typeInteractions) {
     $types = $table->filter('th')->each(function ($th) {
-      return trim($th->text());
+      return cleanData(trim($th->text()));  // Clean headers too
     });
     $table->filter('tr')->eq(1)->filter('td')->each(function ($td, $index) use (&$typeInteractions, $types) {
       $interaction = [
-        'effectiveness' => trim($td->text()),
-        'description' => $td->attr('title')
+        'effectiveness' => cleanData(trim($td->text())),  // Convert numerical values like '2', '0.5', etc.
+        'description' => $td->attr('title')  // Titles are usually clean, but you might want to apply cleanData if needed
       ];
       $typeInteractions[$types[$index]] = $interaction;
     });
