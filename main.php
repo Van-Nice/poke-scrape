@@ -2,24 +2,37 @@
 require 'vendor/autoload.php';
 require 'scrape-functions.php';
 use Goutte\Client;
-$client = new Client();
 
+$client = new Client();
 $url = "https://pokemondb.net/pokedex/all";
 $crawler = $client->request('GET', $url);
+$jsonFilePath = 'pokemonData.json';
 
-$crawler->filter('.ent-name')->each(function ($node) use ($client) {
-  $link = $node->link();
-  $uri = $link->getUri();
-  $crawler = $client->request('GET', $uri);
+// Load existing data or initialize new array
+$pokemonData = file_exists($jsonFilePath) ? json_decode(file_get_contents($jsonFilePath), true) : [];
 
-  $tableKeys = ['pokedexData', 'training', 'breeding', 'baseStats', 'pokedexEntries', 'whereToFind', 'otherlanguages', 'otherLanguagesSpecies'];
-  $processedData = processPokemonData($crawler, $tableKeys);
+$crawler->filter('.cell-name')->each(function ($node) use ($client, &$pokemonData, $jsonFilePath) {
+  $smallName = $node->filter('small.text-muted');
+  $pokemonName = $smallName->count() && trim($smallName->text()) ? trim($smallName->text()) : trim($node->filter('.ent-name')->text());
 
-  $pokemon = array_map('cleanData', $processedData['vitals']);
-  $pokemon['typeInteractions'] = $processedData['typeInteractions'];
-  $pokemon['evolutions'] = $processedData['evolutions'];
-  $pokemon['sprites'] = $processedData['sprites'];
+  if (!isset($pokemonData[$pokemonName])) {
+    $uri = $node->filter('a')->link()->getUri();
+    $detailsCrawler = $client->request('GET', $uri);
+    $tableKeys = ['pokedexData', 'training', 'breeding', 'baseStats', 'pokedexEntries', 'whereToFind', 'otherLanguages', 'otherLanguagesSpecies'];
+    $processedData = processPokemonData($detailsCrawler, $tableKeys);
 
-  print_r($pokemon);
-  sleep(5); // Sleep to avoid rate limiting
+    $pokemonData[$pokemonName] = array_map('cleanData', $processedData['vitals']) + [
+        'typeInteractions' => $processedData['typeInteractions'],
+        'evolutions' => $processedData['evolutions'],
+        'sprites' => $processedData['sprites']
+      ];
+
+    // Save updates immediately to JSON
+    file_put_contents($jsonFilePath, json_encode($pokemonData, JSON_PRETTY_PRINT));
+    echo "Updated data written to '{$jsonFilePath}' for {$pokemonName}.\n";
+  } else {
+    echo "Data for {$pokemonName} already exists, skipping...\n";
+  }
 });
+
+echo "Scraping completed. All data is up to date.\n";
