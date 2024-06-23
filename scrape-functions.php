@@ -29,7 +29,8 @@ function scrapePokemonSprites($crawler) {
     return ['error' => 'No valid table found'];
   }
 
-  $spritesData = $crawler->filter('.data-table.sprites-table.sprites-history-table tbody tr')->each(function ($tr, $i) {
+  $spritesData = [];
+  $crawler->filter('.data-table.sprites-table.sprites-history-table tbody tr')->each(function ($tr, $i) use (&$spritesData) {
     $typeNode = $tr->filter('td')->first();
     $type = $typeNode->count() ? cleanData($typeNode->text()) : 'Unknown Type';
 
@@ -44,15 +45,10 @@ function scrapePokemonSprites($crawler) {
       }
     });
 
-    return [
-      'type' => $type,
-      'sprites' => $sprites
-    ];
+    $spritesData[$type] = $sprites;
   });
 
-  return [
-    'data' => $spritesData
-  ];
+  return $spritesData;
 }
 
 
