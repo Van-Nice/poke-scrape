@@ -22,6 +22,21 @@ function cleanData($input) {
   return $output;
 }
 
+// Function to extract and clean text from paragraphs
+function extractParagraphs($crawler, $maxParagraphs = 3) {
+  // Use the passed Crawler instance to extract text from the first 2 or 3 paragraphs
+  $texts = $crawler->filter('p')->each(function (Crawler $node, $i) use ($maxParagraphs) {
+    if ($i < $maxParagraphs) {
+      return cleanData($node->text());
+    }
+  });
+
+  // Remove null values which may occur if there are fewer paragraphs than $maxParagraphs
+  return array_filter($texts, function($value) {
+    return !is_null($value);
+  });
+}
+
 
 function scrapePokemonSprites($crawler) {
   // Check if the crawler has the necessary table, return early if not.
@@ -125,14 +140,18 @@ function processPokemonData($crawler, $tableKeys) {
     });
   });
 
-  // Process evolution chain
+  // Scrape evolution chain
   $evolutionData = processEvolutionChain($crawler);
 
   // Scrape sprites data
   $sprites = scrapePokemonSprites($crawler);
 
+  // Scrape description paragraphs
+  $paragraphs = extractParagraphs($crawler, 3);
+
   // Return all combined data
   return [
+    'description' => $paragraphs,
     'vitals' => $pokemonData,
     'typeInteractions' => $typeInteractions,
     'evolutions' => $evolutionData,

@@ -37,7 +37,6 @@ $crawler->filter('.cell-name')->each(function ($node) use ($client, &$pokemonDat
     // Process the fetched data using these keys.
     $processedData = processPokemonData($detailsCrawler, $tableKeys);
 
-    // Optional: Merge additional scraped data if needed or handle the data as necessary.
     $pokemonData[$pokemonName] = $processedData;
 
     // Save or update your JSON file/database with the newly obtained data.
