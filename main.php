@@ -1,6 +1,6 @@
 <?php
 require 'vendor/autoload.php';
-require 'vitals-functions.php';
+require 'scrape-functions.php';
 use Goutte\Client;
 $client = new Client();
 
@@ -13,10 +13,11 @@ $crawler->filter('.ent-name')->each(function ($node) use ($client) {
   $crawler = $client->request('GET', $uri);
 
   $tableKeys = ['pokedexData', 'training', 'breeding', 'baseStats', 'pokedexEntries', 'whereToFind', 'otherlanguages', 'otherLanguagesSpecies'];
-  $processedData = processTables($crawler, $tableKeys);
+  $processedData = processPokemonData($crawler, $tableKeys);
 
   $pokemon = array_map('cleanData', $processedData['vitals']);
   $pokemon['typeInteractions'] = $processedData['typeInteractions'];
+  $pokemon['evolutions'] = $processedData['evolutions'];
 
   print_r($pokemon);
   sleep(5); // Sleep to avoid rate limiting
