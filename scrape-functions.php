@@ -1,5 +1,4 @@
 <?php
-// Function to clean up HTML tags and entities
 use Symfony\Component\DomCrawler\Crawler;
 
 function cleanData($input) {
@@ -108,56 +107,110 @@ function processEvolutionChain($crawler) {
   return $evolutionData;
 }
 
-function processPokemonData($crawler, $tableKeys) {
-  $pokemonData = [];
+function extractPokedexData($crawler) {
+  // Initialize the array to store Pokédex data
+  $pokedexData = [];
 
-  // Process vitals data
-  $crawler->filter('.vitals-table')->each(function ($table, $index) use (&$pokemonData, $tableKeys) {
-    $key = $tableKeys[$index] ?? 'unknown';
-    $data = [];
-    $table->filter('tbody tr')->each(function ($tr) use (&$data) {
-      $th = trim($tr->filter('th')->text());
-      $tds = $tr->filter('td')->each(function ($td) {
-        $content = trim($td->text());  // Get the text of the td element
-        if ($td->filter('div')->count()) {  // If there's a div, assume it's a style width (for graphical bars, etc.)
-          $barWidth = $td->filter('div')->attr('style');
-          return preg_replace('/width:(\d+\.\d+)%;/', '$1%', $barWidth);
+  // Select the <h2> element that contains 'Pokédex data'
+  $pokedexDataH2 = $crawler->filterXPath('//h2[text()="Pokédex data"]');
+
+  // Select the table element directly after the <h2>
+  $nextElement = $crawler->filterXPath('//h2[text()="Pokédex data"]/following-sibling::table[1]');
+
+  // Check if the table exists directly after the H2
+  if ($nextElement->count() > 0) {
+    // Iterate through each row in the table
+    $nextElement->filter('tbody > tr')->each(function ($tr) use (&$pokedexData) {
+      $key = trim($tr->filter('th')->text()); // Extract the key from the th element
+      $value = $tr->filter('td')->each(function ($td) {
+        // Handle special cases with multiple links or nested tags
+        if ($td->filter('a')->count() > 0) {
+          $links = [];
+          $td->filter('a')->each(function ($link) use (&$links) {
+            $links[] = trim($link->text());
+          });
+          return implode(', ', $links);
+        } elseif ($td->filter('strong')->count() > 0) {
+          return trim($td->filter('strong')->text());
+        } else {
+          return trim($td->text());
         }
-        return cleanData($content);  // Apply cleanData here to clean and possibly convert
       });
-      $data[$th] = count($tds) === 1 ? $tds[0] : $tds;
+
+      // Concatenate values if they are in an array (due to multiple elements within td)
+      $pokedexData[$key] = is_array($value) ? implode(' ', $value) : $value;
     });
-    $pokemonData[$key] = $data;
+  }
+
+  // Return the associative array containing all Pokédex data
+  return $pokedexData;
+}
+
+function extractTrainingData($crawler) {
+  // Initialize array to store training data
+  $trainingData = [];
+
+  // Select the h2 element that contains training
+}
+
+
+function processPokemonData($crawler) {
+  // Initialize data containers
+  $pokedexData = extractPokedexData($crawler);
+  $typeInteractions = [];
+  $evolutionData = processEvolutionChain($crawler);
+  $sprites = scrapePokemonSprites($crawler);
+  $paragraphs = extractParagraphs($crawler, 3);
+  $handledKeys = [];
+
+  // Process vitals data directly in the function
+  $crawler->filter('table > tbody')->each(function ($tbody) use (&$pokemonData, &$handledKeys) {
+    $data = [];
+    $tbody->filter('tr')->each(function ($tr) use (&$data) {
+      if ($tr->filter('th')->count() && $tr->filter('td')->count()) {
+        $th = trim($tr->filter('th')->text());
+        $tds = $tr->filter('td')->each(function ($td) {
+          $content = trim($td->text());
+          if ($td->filter('div')->count()) {
+            $barWidth = $td->filter('div')->attr('style');
+            return preg_replace('/width:(\d+\.\d+)%;/', '$1%', $barWidth);
+          }
+          return cleanData($content);
+        });
+        $data[$th] = count($tds) === 1 ? $tds[0] : $tds;
+      }
+    });
+
+    // Remove empty entries and handle duplicates
+    $data = array_filter($data);
+    foreach ($data as $key => $value) {
+      if (!array_key_exists($key, $handledKeys)) {
+        $pokemonData[$key] = $value;
+        $handledKeys[$key] = true;
+      } else {
+        $pokemonData[$key] = $value;  // Merge or overwrite logic can be refined here
+      }
+    }
   });
 
-// Process type interactions
-  $typeInteractions = [];
+  // Process type interactions
   $crawler->filter('.type-table.type-table-pokedex')->each(function ($table) use (&$typeInteractions) {
     $types = $table->filter('th')->each(function ($th) {
-      return cleanData(trim($th->text()));  // Clean headers too
+      return cleanData(trim($th->text()));
     });
     $table->filter('tr')->eq(1)->filter('td')->each(function ($td, $index) use (&$typeInteractions, $types) {
       $interaction = [
-        'effectiveness' => cleanData(trim($td->text())),  // Convert numerical values like '2', '0.5', etc.
-        'description' => $td->attr('title')  // Titles are usually clean, but you might want to apply cleanData if needed
+        'effectiveness' => cleanData(trim($td->text())),
+        'description' => $td->attr('title')
       ];
       $typeInteractions[$types[$index]] = $interaction;
     });
   });
 
-  // Scrape evolution chain
-  $evolutionData = processEvolutionChain($crawler);
-
-  // Scrape sprites data
-  $sprites = scrapePokemonSprites($crawler);
-
-  // Scrape description paragraphs
-  $paragraphs = extractParagraphs($crawler, 3);
-
   // Return all combined data
   return [
     'description' => $paragraphs,
-    'vitals' => $pokemonData,
+    'vitals' => $pokedexData,
     'typeInteractions' => $typeInteractions,
     'evolutions' => $evolutionData,
     'sprites' => $sprites,
