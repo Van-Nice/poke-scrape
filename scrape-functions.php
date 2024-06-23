@@ -1,14 +1,27 @@
 <?php
 // Function to clean up HTML tags and entities
-function cleanData($input): string|array {
+use Symfony\Component\DomCrawler\Crawler;
+
+function cleanData($input) {
+  if ($input === null) {
+    return '';  // Return an empty string or handle the null case as appropriate
+  }
   if (is_array($input)) {
     return array_map('cleanData', $input);  // Recursively clean each element
   }
   $output = strip_tags($input);  // Remove HTML tags
-  $output = html_entity_decode($output);  // Decode HTML entities
+  $output = html_entity_decode($output, ENT_QUOTES | ENT_HTML5, 'UTF-8');  // Decode HTML entities
+  $output = preg_replace('/\s+/', ' ', $output);  // Replace multiple whitespace with single space
   $output = trim($output);  // Trim spaces
+
+  // Convert numeric strings to integers or floats where appropriate
+  if (is_numeric($output)) {
+    return $output + 0;  // Converts to int or float automatically
+  }
+
   return $output;
 }
+
 
 function scrapePokemonSprites($crawler) {
   // Check if the crawler has the necessary table, return early if not.
@@ -16,18 +29,15 @@ function scrapePokemonSprites($crawler) {
     return ['error' => 'No valid table found'];
   }
 
-  $pokemonName = $crawler->attr('data-pkname') ?: 'Unknown';
-  $pokemonAlias = $crawler->attr('data-pkalias') ?: 'Unknown';
-
   $spritesData = $crawler->filter('.data-table.sprites-table.sprites-history-table tbody tr')->each(function ($tr, $i) {
     $typeNode = $tr->filter('td')->first();
-    $type = $typeNode->count() ? trim($typeNode->text()) : 'Unknown Type';
+    $type = $typeNode->count() ? cleanData($typeNode->text()) : 'Unknown Type';
 
     $sprites = [];
     $tr->filter('td.text-center')->each(function ($td, $index) use (&$sprites, $tr) {
-      $header = $tr->closest('table')->filter('thead th')->eq($index + 1)->text();
+      $header = cleanData($tr->closest('table')->filter('thead th')->eq($index + 1)->text());
       if ($td->filter('a')->count() && $td->filter('img')->count()) {
-        $imgSrc = $td->filter('img')->attr('src');
+        $imgSrc = cleanData($td->filter('img')->attr('src'));
         $sprites[$header] = $imgSrc;
       } else {
         $sprites[$header] = '—';
@@ -41,62 +51,44 @@ function scrapePokemonSprites($crawler) {
   });
 
   return [
-    'name' => $pokemonName,
-    'alias' => $pokemonAlias,
     'data' => $spritesData
   ];
 }
 
 
-function processEvolutionChain($crawler) {
-  $evolutionElements = $crawler->filter('.infocard-list-evo > div')->each(function ($node) {
-    $classAttribute = $node->attr('class');
-    if (preg_match('/\binfocard\b/', $classAttribute)) {
-      $pokemonName = $node->filter('.ent-name')->text();
-      $pokemonId = trim($node->filter('.infocard-lg-data small')->first()->text(), '#');
-      $types = $node->filter('.itype')->each(function ($type) {
-        return trim($type->text());
-      });
-      $imgSrc = $node->filter('img')->attr('src');
-      return [
-        'type' => 'pokemon',
-        'name' => $pokemonName,
-        'id' => $pokemonId,
-        'types' => $types,
-        'image' => $imgSrc
-      ];
-    } else if (preg_match('/\binfocard-arrow\b/', $classAttribute)) {
-      $evolutionDetail = trim($node->text());
-      return [
-        'type' => 'evolution_detail',
-        'detail' => $evolutionDetail
-      ];
-    }
-  });
+function extractPokemonDetails($node) {
+  $pokemonName = cleanData($node->filter('.ent-name')->text());
+  $pokemonId = cleanData($node->filter('.infocard-lg-data small')->first()->text(), '#');
+  $types = $node->filter('.itype')->each(fn($type) => cleanData($type->text()));
+  $imgSrc = $node->filter('img')->attr('src');
 
-  // Organize evolution data into structured relationships
+  return [
+    'name' => $pokemonName,
+    'id' => $pokemonId,
+    'types' => $types,
+    'image' => $imgSrc
+  ];
+}
+
+function processEvolutionChain($crawler) {
+  $evolutionElements = $crawler->filter('.infocard-list-evo > div');
   $evolutionData = [];
-  $currentPokemon = null;
+
   foreach ($evolutionElements as $element) {
-    if ($element['type'] === 'pokemon') {
-      if ($currentPokemon) {
-        $evolutionData[] = $currentPokemon;
+    $node = new Crawler($element);
+    if ($node->matches('.infocard')) {
+      $pokemonDetails = extractPokemonDetails($node);
+      $evolutionData[] = $pokemonDetails;
+    } else if ($node->matches('.infocard-arrow')) {
+      $evolutionDetail = cleanData($node->text());
+      if (!empty($evolutionData)) {
+        $evolutionData[count($evolutionData) - 1]['evolution_detail'] = $evolutionDetail;
       }
-      $currentPokemon = [
-        'pokemon' => $element,
-        'evolution_condition' => null  // Initialize with no evolution condition
-      ];
-    } elseif ($element['type'] === 'evolution_detail' && $currentPokemon) {
-      $currentPokemon['evolution_condition'] = $element['detail'];
     }
-  }
-  if ($currentPokemon) {
-    $evolutionData[] = $currentPokemon; // Add the last Pokémon if needed
   }
 
   return $evolutionData;
 }
-
 function processPokemonData($crawler, $tableKeys) {
   $pokemonData = $crawler->filter('.vitals-table')->each(function ($table, $index) use ($tableKeys) {
     $key = $tableKeys[$index] ?? 'unknown';

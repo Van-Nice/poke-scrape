@@ -16,23 +16,39 @@ $crawler->filter('.cell-name')->each(function ($node) use ($client, &$pokemonDat
   $pokemonName = $smallName->count() && trim($smallName->text()) ? trim($smallName->text()) : trim($node->filter('.ent-name')->text());
 
   if (!isset($pokemonData[$pokemonName])) {
+    // Get the URI of the Pokémon details page from the link associated with its name.
     $uri = $node->filter('a')->link()->getUri();
+
+    // Fetch the Pokémon details page using the URI.
     $detailsCrawler = $client->request('GET', $uri);
-    $tableKeys = ['pokedexData', 'training', 'breeding', 'baseStats', 'pokedexEntries', 'whereToFind', 'otherLanguages', 'otherLanguagesSpecies'];
+
+    // Define keys that correspond to different sections of data expected from the details page.
+    $tableKeys = [
+      'pokedexData',
+      'training',
+      'breeding',
+      'baseStats',
+      'pokedexEntries',
+      'whereToFind',
+      'otherLanguages',
+      'otherLanguagesSpecies'
+    ];
+
+    // Process the fetched data using these keys.
     $processedData = processPokemonData($detailsCrawler, $tableKeys);
 
-    $pokemonData[$pokemonName] = array_map('cleanData', $processedData['vitals']) + [
-        'typeInteractions' => $processedData['typeInteractions'],
-        'evolutions' => $processedData['evolutions'],
-        'sprites' => $processedData['sprites']
-      ];
+    // Optional: Merge additional scraped data if needed or handle the data as necessary.
+    $pokemonData[$pokemonName] = $processedData;
 
-    // Save updates immediately to JSON
-    file_put_contents($jsonFilePath, json_encode($pokemonData, JSON_PRETTY_PRINT));
-    echo "Updated data written to '{$jsonFilePath}' for {$pokemonName}.\n";
+    // Save or update your JSON file/database with the newly obtained data.
+    file_put_contents('pokemonData.json', json_encode($pokemonData, JSON_PRETTY_PRINT));
+
+    // Output to console or log file.
+    echo "Data for {$pokemonName} fetched and processed successfully.\n";
   } else {
     echo "Data for {$pokemonName} already exists, skipping...\n";
   }
+  sleep(1);  // Be nice to the server
 });
 
 echo "Scraping completed. All data is up to date.\n";
