@@ -177,11 +177,43 @@ function extractBaseStats($crawler, $section) {
   return $stats;
 }
 
-function processPokemonData($crawler, $pokemonData) {
+function extractPokedexEntries($crawler) {
+  // Select the second <div> with class 'resp-scroll'
+  $secondRespScrollDiv = $crawler->filter('.resp-scroll')->eq(1);
+  echo $secondRespScrollDiv->html();
+
+  // Initialize an array to hold the data
+  $pokemonData = [];
+
+  // Iterate over each table row within the second resp-scroll div
+  $secondRespScrollDiv->filter('table.vitals-table > tbody > tr')->each(function ($tr) use (&$pokemonData) {
+    // Extract the game version from the 'th' element (includes handling multiple spans for multiple games)
+    $gameVersions = $tr->filter('th > span.igame')->each(function ($span) {
+      return trim($span->text()); // Extract text for each span individually
+    });
+
+    // Extract the description text from the 'td' element
+    $description = trim($tr->filter('td.cell-med-text')->text());
+
+    // Since gameVersions is an array, iterate over it to pair each version with the description
+    foreach ($gameVersions as $version) {
+      $pokemonData[] = [
+        'Game Version' => $version,
+        'Description' => $description
+      ];
+    }
+  });
+
+  return $pokemonData;
+}
+
+function processPokemonData($crawler, $pokemonName) {
+
   // Initialize data containers
   $pokedexData = extractData($crawler, 'Pokédex data');
   $trainingData = extractData($crawler, 'Training');
   $breedingData = extractData($crawler, 'Breeding');
+  $findData = extractData($crawler, 'Where to find ' . $pokemonName);
   $baseStats = extractBaseStats($crawler, 'Base stats');
   $typeInteractions = [];
   $evolutionData = processEvolutionChain($crawler);
@@ -206,17 +238,6 @@ function processPokemonData($crawler, $pokemonData) {
         $data[$th] = count($tds) === 1 ? $tds[0] : $tds;
       }
     });
-
-    // Remove empty entries and handle duplicates
-    $data = array_filter($data);
-    foreach ($data as $key => $value) {
-      if (!array_key_exists($key, $handledKeys)) {
-        $pokemonData[$key] = $value;
-        $handledKeys[$key] = true;
-      } else {
-        $pokemonData[$key] = $value;  // Merge or overwrite logic can be refined here
-      }
-    }
   });
 
   // Process type interactions
@@ -240,6 +261,7 @@ function processPokemonData($crawler, $pokemonData) {
     'breedingData' => $breedingData,
     'trainingData' => $trainingData,
     'baseStats' => $baseStats,
+    'whereToFind' => $findData,
     'typeInteractions' => $typeInteractions,
     'evolutions' => $evolutionData,
     'sprites' => $sprites,

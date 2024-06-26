@@ -13,7 +13,8 @@ $pokemonData = file_exists($jsonFilePath) ? json_decode(file_get_contents($jsonF
 
 $crawler->filter('.cell-name')->each(function ($node) use ($client, &$pokemonData, $jsonFilePath) {
   $smallName = $node->filter('small.text-muted');
-  $pokemonName = $smallName->count() && trim($smallName->text()) ? trim($smallName->text()) : trim($node->filter('.ent-name')->text());
+  $bigName = trim($node->filter('.ent-name')->text());
+  $pokemonName = $smallName->count() && trim($smallName->text()) ? trim($smallName->text()) : $bigName;
 
   if (!isset($pokemonData[$pokemonName])) {
     // Get the URI of the Pokémon details page from the link associated with its name.
@@ -35,7 +36,7 @@ $crawler->filter('.cell-name')->each(function ($node) use ($client, &$pokemonDat
     ];
 
     // Process the fetched data using these keys.
-    $processedData = processPokemonData($detailsCrawler, $pokemonName);
+    $processedData = processPokemonData($detailsCrawler, $bigName);
 
     $pokemonData[$pokemonName] = $processedData;
 
