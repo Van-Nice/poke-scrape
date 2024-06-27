@@ -5,50 +5,54 @@ use Goutte\Client;
 
 $client = new Client();
 $url = "https://pokemondb.net/pokedex/all";
-$crawler = $client->request('GET', $url);
 $jsonFilePath = 'pokemonData.json';
 
-// Load existing data or initialize new array
-$pokemonData = file_exists($jsonFilePath) ? json_decode(file_get_contents($jsonFilePath), true) : [];
+// Initialize an empty array to store Pokémon data
+$pokemonData = [];
 
-$crawler->filter('.cell-name')->each(function ($node) use ($client, &$pokemonData, $jsonFilePath) {
+// Load existing data or initialize new if the file exists
+if (file_exists($jsonFilePath)) {
+  $pokemonData = json_decode(file_get_contents($jsonFilePath), true);
+  if (!is_array($pokemonData)) { // Ensuring the loaded data is indeed an array
+    $pokemonData = [];
+  }
+}
+
+// Process each Pokémon entry found on the page
+$crawler = $client->request('GET', $url);
+$processedCount = 0; // Counter to keep track of the number of processed Pokémon
+
+$crawler->filter('.cell-name')->each(function ($node) use ($client, &$pokemonData, $jsonFilePath, &$processedCount) {
   $smallName = $node->filter('small.text-muted');
   $bigName = trim($node->filter('.ent-name')->text());
-  $pokemonName = $smallName->count() && trim($smallName->text()) ? trim($smallName->text()) : $bigName;
+  $pokemonName = $smallName->count() > 0 ? trim($smallName->text()) : $bigName;
 
-  if (!isset($pokemonData[$pokemonName])) {
-    // Get the URI of the Pokémon details page from the link associated with its name.
+  // Check if Pokémon data already exists
+  $exists = array_search($pokemonName, array_column($pokemonData, 'name'));
+
+  if ($exists === false) {
     $uri = $node->filter('a')->link()->getUri();
-
-    // Fetch the Pokémon details page using the URI.
     $detailsCrawler = $client->request('GET', $uri);
 
-    // Define keys that correspond to different sections of data expected from the details page.
-    $tableKeys = [
-      'pokedexData',
-      'training',
-      'breeding',
-      'baseStats',
-      'pokedexEntries',
-      'whereToFind',
-      'otherLanguages',
-      'otherLanguagesSpecies'
-    ];
+    // Start the array with the name
+    $processedData = ['name' => $pokemonName];
 
-    // Process the fetched data using these keys.
-    $processedData = processPokemonData($detailsCrawler, $bigName);
+    // Process and store details fetched from the Pokémon's detail page
+    $additionalData = processPokemonData($detailsCrawler, $bigName);
+    foreach ($additionalData as $key => $value) {
+      $processedData[$key] = $value; // Add each piece of additional data to the array
+    }
 
-    $pokemonData[$pokemonName] = $processedData;
+    $pokemonData[] = $processedData; // Append to the array
+    $processedCount++;
 
-    // Save or update your JSON file/database with the newly obtained data.
-    file_put_contents('pokemonData.json', json_encode($pokemonData, JSON_PRETTY_PRINT));
-
-    // Output to console or log file.
-    echo "Data for {$pokemonName} fetched and processed successfully.\n";
+    // Save the updated Pokémon data to a JSON file
+    file_put_contents($jsonFilePath, json_encode($pokemonData, JSON_PRETTY_PRINT));
+    echo "{$processedCount}. Data for {$pokemonName} fetched and processed successfully.\n";
   } else {
     echo "Data for {$pokemonName} already exists, skipping...\n";
   }
-  sleep(1);  // Be nice to the server
+  sleep(1); // Implement a delay to reduce load on the server
 });
 
 echo "Scraping completed. All data is up to date.\n";
