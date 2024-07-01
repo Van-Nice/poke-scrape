@@ -47,36 +47,48 @@ The script will fetch details for each Pokémon not already present in `pokemonD
 
 ```json
 {
-  "Bulbasaur": {
-    "vitals": {
-      "pokedexData": {
-        "National №": "0001",
-        "Type": "Grass Poison",
-        ...
+   "Bulbasaur": {
+      "vitals": {
+         "pokedexData": {
+            "National №": "0001",
+            "Type": "Grass Poison",
+            ...
+         },
+         "training": {...},
+         "breeding": {...},
+         "baseStats": {...},
+         "pokedexEntries": {...},
+         "whereToFind": {...},
+         "otherLanguages": {...},
+         "otherLanguagesSpecies": {...}
       },
-      "training": {...},
-      "breeding": {...},
-      "baseStats": {...},
-      "pokedexEntries": {...},
-      "whereToFind": {...},
-      "otherLanguages": {...},
-      "otherLanguagesSpecies": {...}
-    },
-    "typeInteractions": {
-      "Nor": {...},
-      "Fir": {...},
-      ...
-    },
-    "evolutions": {
-      "Bulbasaur": {...},
-      "Ivysaur": {...},
-      "Venusaur": {...}
-    },
-    "sprites": {
-      "Normal": {...},
-      "Shiny": {...}
-    }
-  }
+      "typeInteractions": {
+         "Nor": {...},
+         "Fir": {...},
+         ...
+      },
+      "evolutions": {
+         "Bulbasaur": {...},
+         "Ivysaur": {...},
+         "Venusaur": {...}
+      },
+      "sprites": {
+         "Normal": {...},
+         "Shiny": {...}
+      },
+      "moves": {
+         "BDSP": {
+            "LevelUp": {...},
+            "TM": {...},
+            "Egg": {...}
+         },
+         "SV": {
+            "LevelUp": {...},
+            "TM": {...},
+            "Egg": {...}
+         }
+      }
+   }
 }
 ```
 

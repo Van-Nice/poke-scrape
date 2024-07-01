@@ -207,6 +207,30 @@ function extractPokedexEntries($crawler) {
   return $pokemonData;
 }
 
+/**
+ * Scrapes learnable moves by the pokemon.
+ * @param $crawler
+ * @param $pokemonName
+ * @return array
+ */
+function extractMoveData($crawler, $pokemonName){
+    $allMoves = [];
+    $SVdiv = $crawler->filter("#tab-moves-21")->filter('table');
+    $BDSPdiv = $crawler->filter("#tab-moves-19")->filter('table');
+    //dbg
+
+    $SVdiv->each(function (Crawler $node, $i) {
+        echo "Table " . ($i + 1) . ":\n";
+        echo $node->html() . "\n\n";
+    });
+    $BDSPdiv->each(function (Crawler $node, $i) {
+        echo "Table " . ($i + 1) . ":\n";
+        echo $node->html() . "\n\n";
+    });
+
+//    $allMoves["SV"] =
+    return ["hello world"];
+}
 function processPokemonData($crawler, $pokemonName) {
 
   // Initialize data containers
@@ -219,6 +243,7 @@ function processPokemonData($crawler, $pokemonName) {
   $evolutionData = processEvolutionChain($crawler);
   $sprites = scrapePokemonSprites($crawler);
   $paragraphs = extractParagraphs($crawler, 3);
+  $learnableMoves = extractMoveData($crawler, $pokemonName);
   $handledKeys = [];
 
   // Process vitals data directly in the function
@@ -265,6 +290,7 @@ function processPokemonData($crawler, $pokemonName) {
     'typeInteractions' => $typeInteractions,
     'evolutions' => $evolutionData,
     'sprites' => $sprites,
+    'moves' => $learnableMoves
   ];
 }
 ?>
