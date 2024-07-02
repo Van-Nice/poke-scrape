@@ -215,21 +215,45 @@ function extractPokedexEntries($crawler) {
  */
 function extractMoveData($crawler, $pokemonName){
     $allMoves = [];
-    $SVdiv = $crawler->filter("#tab-moves-21")->filter('table');
-    $BDSPdiv = $crawler->filter("#tab-moves-19")->filter('table');
+    $SVmovesets = $crawler->filter("#tab-moves-21")->filter('table');
+//    if(!$SVmovesets){
+//        echo "no item existed";
+//        return [];
+//    }
+//    echo "\n\nlen $SVmovesets->count() \n\n";
+//    echo $SVmovesets->eq(0)->html();
+//    echo "\n\n\n";
+//    echo $SVmovesets->eq(1)->html();
+//    echo "\n\n\n";
+//    echo $SVmovesets->eq(2)->html();
+    $BDSPmovesets = $crawler->filter("#tab-moves-19")->filter('table');
     //dbg
 
-    $SVdiv->each(function (Crawler $node, $i) {
+    /* S/V level up moves */
+
+
+//    if ($SVmovesets->count() > 0) {
+////        $SVmovesets->filter('tbody > tr')->each(function ($tr) use (&$data) {
+////            $key = trim($tr->filter('th')->text());
+////            $value = $tr->filter('td')->text();
+////            $allMoves[$key] = cleanData($value); // Use cleanData function to clean each value
+////        });
+//    }
+    /* S/V egg moves */
+    /* S/V TM moves */
+    $SVmovesets->each(function (Crawler $node, $i) {
         echo "Table " . ($i + 1) . ":\n";
         echo $node->html() . "\n\n";
     });
-    $BDSPdiv->each(function (Crawler $node, $i) {
+    $BDSPmovesets->each(function (Crawler $node, $i) {
         echo "Table " . ($i + 1) . ":\n";
         echo $node->html() . "\n\n";
     });
 
-//    $allMoves["SV"] =
-    return ["hello world"];
+    //    $allMoves["SV"] =
+
+    return $allMoves;
+
 }
 function processPokemonData($crawler, $pokemonName) {
 
